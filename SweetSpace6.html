@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>我们的专属纪念日</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html {
+            width: 100%; height: 100%;
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%);
+            overflow-x: hidden; color: #4a4a4a;
+        }
+        
+        #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
+        .container { position: relative; z-index: 10; max-width: 600px; margin: 0 auto; padding: 40px 20px; text-align: center; }
+        .header { margin-bottom: 40px; }
+        .main-heart { font-size: 60px; color: #ff4d6d; display: inline-block; }
+        h1 { font-size: 2.2rem; color: #fff; text-shadow: 2px 2px 4px rgba(0,0,0,0.1); margin-top: 10px; }
+        
+        .timer-card { background: rgba(255, 255, 255, 0.85); border-radius: 20px; padding: 30px 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .timer-card p { font-size: 1.1rem; color: #666; margin-bottom: 15px; }
+        .countdown { display: flex; justify-content: space-around; margin-top: 20px; }
+        .time-box { background: rgba(255, 77, 109, 0.1); padding: 10px 15px; border-radius: 12px; min-width: 70px; }
+        .time-num { font-size: 1.8rem; font-weight: bold; color: #ff4d6d; display: block; }
+        .time-label { font-size: 0.8rem; color: #888; }
+        
+        /* 📸 高级紧凑型相册卡片容器 */
+        .album-card { background: rgba(255, 255, 255, 0.85); border-radius: 20px; padding: 25px 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); margin-bottom: 30px; overflow: hidden; }
+        .album-title { font-size: 1.3rem; color: #ff4d6d; margin-bottom: 15px; font-weight: bold; }
+        
+        /* 1. 横向滚动视窗（极省空间，高度固定） */
+        .scroller-view { 
+            display: flex; gap: 15px; overflow-x: auto; padding: 10px 5px 20px 5px;
+            scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+        }
+        .scroller-view::-webkit-scrollbar { display: none; } /* 隐藏滚动条 */
+        
+        .photo-item { 
+            flex: 0 0 140px; /* 每张卡片固定宽度 */
+            scroll-snap-align: center;
+            background: white; padding: 8px 8px 20px 8px; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.12); 
+            transform: rotate(var(--r, 0deg)); 
+            transition: all 0.3s ease; cursor: pointer; border-radius: 2px;
+        }
+        .photo-item:hover { transform: scale(1.05) rotate(0deg) !important; z-index: 50; }
+        
+        .img-wrapper { width: 100%; height: 130px; background: #ffe3e8; border-radius: 2px; overflow: hidden; display: flex; align-items: center; justify-content: center; position: relative; }
+        .img-wrapper::before { content: "❤️"; font-size: 20px; position: absolute; z-index: 1; opacity: 0.4; }
+        .photo-item img { width: 100%; height: 100%; object-fit: cover; position: relative; z-index: 2; background: white; transition: opacity 0.3s; }
+        .photo-caption { font-size: 0.75rem; color: #777; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: "STKaiti", "KaiTi", serif; }
+        
+        /* 2. 隐藏的网格抽屉面板 */
+        .drawer-toggle-btn { background: rgba(255, 77, 109, 0.1); color: #ff4d6d; border: 1px dashed #ff4d6d; padding: 10px 20px; border-radius: 20px; font-size: 0.9rem; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; transition: all 0.3s; -webkit-tap-highlight-color: transparent; }
+        .drawer-toggle-btn:hover { background: rgba(255, 77, 109, 0.2); }
+        
+        .grid-drawer { 
+            max-height: 0; overflow: hidden; transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 0 5px; margin-top: 0;
+        }
+        .grid-drawer.open { max-height: 1200px; margin-top: 20px; padding-top: 10px; border-top: 1px dashed rgba(255, 77, 109, 0.2); }
+        
+        /* 抽屉内微型缩略图（4列紧凑排布） */
+        .thumb-item { 
+            aspect-ratio: 1; background: white; padding: 3px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); 
+            border-radius: 4px; cursor: pointer; position: relative; background: #ffe3e8;
+        }
+        .thumb-item img { width: 100%; height: 100%; object-fit: cover; border-radius: 2px; }
+        
+        /* 业务卡片等其他样式保持不变 */
+        .timeline-card { background: rgba(255, 255, 255, 0.85); border-radius: 20px; padding: 25px 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); margin-bottom: 30px; text-align: left; }
+        .timeline-title { font-size: 1.3rem; color: #ff4d6d; margin-bottom: 15px; text-align: center; font-weight: bold; }
+        .story-item { border-bottom: 1px solid rgba(0,0,0,0.05); padding: 12px 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        .story-header { display: flex; justify-content: space-between; font-weight: 500; color: #555; }
+        .story-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; color: #777; font-size: 0.95rem; line-height: 1.6; padding-top: 0; }
+        .story-item.active .story-content { max-height: 150px; padding-top: 8px; }
+        
+        .action-card { background: rgba(255, 255, 255, 0.85); border-radius: 20px; padding: 25px 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+        .btn-group { display: flex; flex-direction: column; gap: 15px; align-items: center; }
+        .action-btn { width: 90%; max-width: 320px; color: white; border: none; padding: 14px 20px; font-size: 1rem; border-radius: 25px; cursor: pointer; font-weight: 500; display: flex; justify-content: center; align-items: center; gap: 8px; user-select: none; -webkit-tap-highlight-color: transparent; }
+        .egg-btn { background: linear-gradient(45deg, #ff4d6d, #ff758f); }
+        
+        .letter-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
+        .letter-overlay.show { opacity: 1; pointer-events: auto; }
+        .letter-box { background: #ffffff; width: 85%; max-width: 450px; border-radius: 20px; padding: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.15); text-align: left; }
+        .letter-box h2 { color: #ff4d6d; margin-bottom: 15px; font-size: 1.4rem; text-align: center; }
+        .letter-text { font-size: 1rem; color: #555; line-height: 1.8; white-space: pre-wrap; margin-bottom: 20px; max-height: 300px; overflow-y: auto; }
+        .close-btn { display: block; width: 100%; background: #f0f0f0; color: #666; border: none; padding: 10px; border-radius: 10px; cursor: pointer; text-align: center; font-weight: 500; -webkit-tap-highlight-color: transparent; }
+        
+        .music-toggle { position: fixed; top: 20px; right: 20px; z-index: 100; width: 36px; height: 36px; border-radius: 50%; background: rgba(255, 255, 255, 0.7); display: flex; align-items: center; justify-content: center; font-size: 18px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.1); user-select: none; -webkit-tap-highlight-color: transparent; }
+        .music-rotate { animation: rotate 3s linear infinite; }
+        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        .lightbox { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 10000; display: none; justify-content: center; align-items: center; user-select: none; }
+        .lightbox img { max-width: 92%; max-height: 75%; border: 6px solid white; border-radius: 4px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); object-fit: contain; }
+        .nav-btn { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.2); color: white; border: none; width: 45px; height: 45px; border-radius: 50%; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
+        .prev-btn { left: 15px; }
+        .next-btn { right: 15px; }
+        .close-lightbox { position: absolute; top: 20px; right: 20px; color: white; font-size: 30px; cursor: pointer; width: 40px; height: 40px; text-align: center; line-height: 40px; background: rgba(0,0,0,0.3); border-radius: 50%; -webkit-tap-highlight-color: transparent; }
+
+        #welcomeOverlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+            z-index: 999999 !important; display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            transition: opacity 0.5s ease;
+        }
+        .enter-btn {
+            background: white; border: none; color: #ff4d6d;
+            padding: 15px 35px; font-size: 1.1rem; border-radius: 30px;
+            box-shadow: 0 10px 25px rgba(255,77,109,0.3);
+            cursor: pointer; font-weight: bold; margin-top: 20px;
+            -webkit-tap-highlight-color: transparent;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="welcomeOverlay">
+        <div style="font-size: 70px;">❤️</div>
+        <button class="enter-btn" onclick="startEverything()">点亮我们的专属纪念日 ✨</button>
+    </div>
+
+    <div class="music-toggle" id="musicBtn" onclick="toggleMusic(event)">🎵</div>
+    <audio id="bgMusic" src="https://raw.githubusercontent.com/MapleMrming/SweetHome/main/bg.mp3" loop preload="auto"></audio>
+    <canvas id="canvas"></canvas>
+
+    <div class="container">
+        <div class="header">
+            <div class="main-heart">❤️</div>
+            <h1>今天是我们在一起的</h1>
+        </div>
+
+        <div class="timer-card">
+            <p>从 2020 年 5 月 20 日开始，我们已经携手走过了：</p>
+            <div class="countdown">
+                <div class="time-box"><span class="time-num" id="days">00</span><span class="time-label">天</span></div>
+                <div class="time-box"><span class="time-num" id="hours">00</span><span class="time-label">时</span></div>
+                <div class="time-box"><span class="time-num" id="minutes">00</span><span class="time-label">分</span></div>
+                <div class="time-box"><span class="time-num" id="seconds">00</span><span class="time-label">秒</span></div>
+            </div>
+        </div>
+
+        <div class="album-card">
+            <div class="album-title">🖼️ 我们的幸福瞬间 (60)</div>
+            
+            <div class="scroller-view" id="photoScroller"></div>
+            
+            <button class="drawer-toggle-btn" onclick="toggleDrawer()">
+                <span id="btnIcon">🔍</span> <span id="btnText">展开全部 60 张幸福卡片</span>
+            </button>
+            
+            <div class="grid-drawer" id="photoDrawer"></div>
+        </div>
+
+        <div class="timeline-card">
+            <div class="timeline-title">✨ 我们的独家记忆</div>
+            <div class="story-item" onclick="toggleStory(this)">
+                <div class="story-header"><span>故事的开始</span><span>2020.05.20</span></div>
+                <div class="story-content">那一天阳光很好，我们正式确定了关系。从那以后的每一天，我的世界多了一个你，也多了一份笃定。</div>
+            </div>
+            <div class="story-item" onclick="toggleStory(this)">
+                <div class="story-header"><span>那天我们盖上了章</span><span>2021.05.10</span></div>
+                <div class="story-content">从此两个人成为了彼此，相互扶持，相互成长。和你在一起，让工作不再孤单，福州成为了我的家。</div>
+            </div>
+            <div class="story-item" onclick="toggleStory(this)">
+                <div class="story-header"><span>爱的结晶在今天诞生</span><span>2021.12.02</span></div>
+                <div class="story-content">这是我们两个人爱的见证，怀念宝宝在肚子里我们两个人”相依为命“的日子、从此生活不再是彼此，还有共同孕育的爱的希望。</div>
+            </div>
+        </div>
+
+        <div class="action-card">
+            <div class="btn-group">
+                <button class="action-btn egg-btn" onclick="openLetter()">💌 点击解锁告白信</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="letter-overlay" id="letterOverlay">
+        <div class="letter-box">
+            <h2>写给最可爱的你 💌</h2>
+            <div class="letter-text" id="typewriterText"></div>
+            <button class="close-btn" onclick="closeLetter()">收起信件</button>
+        </div>
+    </div>
+
+    <div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+        <span class="close-lightbox" onclick="closeLightbox(event)">&times;</span>
+        <button class="nav-btn prev-btn" onclick="changePhoto(-1, event)">&#10094;</button>
+        <img id="lightboxImg" src="" alt="大图预览">
+        <button class="nav-btn next-btn" onclick="changePhoto(1, event)">&#10095;</button>
+    </div>
+
+    <script>
+        // ======================== ⚙️ 60张图片流全自动渲染分配引擎 ========================
+        const OSS_BASE_URL = "https://sweet-space-photos.oss-cn-hangzhou.aliyuncs.com/photos/";
+        const TOTAL_PHOTOS = 60; // 🎯 完美扩容到 60 张图片
+        const MAIN_SCROLL_COUNT = 12; // 默认在顶部横滑区放 12 张图
+        
+        const photoList = [];
+
+        function generatePhotoList() {
+            for (let i = 1; i <= TOTAL_PHOTOS; i++) {
+                let fileName = encodeURIComponent(`photo (${i}).jpg`);
+                photoList.push({
+                    url: OSS_BASE_URL + fileName,
+                    caption: `✨ 甜蜜瞬间 - 第 ${i} 页`
+                });
+            }
+        }
+
+        // 核心渲染器：将 60 张图合理分流分配
+        function renderCompactAlbum() {
+            generatePhotoList();
+            const scroller = document.getElementById('photoScroller');
+            const drawer = document.getElementById('photoDrawer');
+            if (!scroller || !drawer) return;
+            
+            scroller.innerHTML = "";
+            drawer.innerHTML = "";
+            
+            photoList.forEach((photo, index) => {
+                // 1. 顶层分流：前 12 张图生成带有拍立得倾斜特效的横向滚动卡片
+                if (index < MAIN_SCROLL_COUNT) {
+                    const randomRotate = (Math.random() * 6 - 3).toFixed(1); 
+                    const cardHtml = `
+                        <div class="photo-item" style="--r: ${randomRotate}deg" onclick="openLightbox(${index})">
+                            <div class="img-wrapper">
+                                <img src="${photo.url}" alt="${photo.caption}" id="img-node-${index}" loading="lazy" onerror="handleImageError(this, ${index})">
+                            </div>
+                            <div class="photo-caption">${photo.caption}</div>
+                        </div>
+                    `;
+                    scroller.innerHTML += cardHtml;
+                }
+                
+                // 2. 全量分流：所有 60 张图全部塞进底部的 4列极简四方阵抽屉里（作为隐藏缩略图索引）
+                const thumbHtml = `
+                    <div class="thumb-item" onclick="openLightbox(${index})" id="thumb-box-${index}">
+                        <img src="${photo.url}" loading="lazy" onerror="handleThumbError(${index})">
+                    </div>
+                `;
+                drawer.innerHTML += thumbHtml;
+            });
+        }
+
+        // 控制抽屉展开/折叠
+        function toggleDrawer() {
+            const drawer = document.getElementById('photoDrawer');
+            const btnText = document.getElementById('btnText');
+            const btnIcon = document.getElementById('btnIcon');
+            if(!drawer) return;
+            
+            if (drawer.classList.contains('open')) {
+                drawer.classList.remove('open');
+                btnText.innerText = "展开全部 60 张幸福卡片";
+                btnIcon.innerText = "🔍";
+            } else {
+                drawer.classList.add('open');
+                btnText.innerText = "收起全量照片墙";
+                btnIcon.innerText = "🔼";
+            }
+        }
+
+        // 顶层横滑大卡片容错：如果找不到，直接不占用横滑空间
+        function handleImageError(imgElement, index) {
+            console.warn(`[横滑区卡片失效] 序号: ${index + 1}`);
+            const item = imgElement.closest('.photo-item');
+            if(item) item.style.display = 'none';
+        }
+
+        // 底部微缩抽屉容错：如果图不齐或加载失败，直接去掉对应的缩略方块，不留空白碎裂图
+        function handleThumbError(index) {
+            console.warn(`[抽屉缩略图失效] 序号: ${index + 1}`);
+            const thumb = document.getElementById(`thumb-box-${index}`);
+            if(thumb) thumb.style.display = 'none';
+        }
+
+        // ======================== 其他原有核心交互业务逻辑 ========================
+        const loveLetterContent = `亲爱的：\n\n一转眼，我们已经在一起这么久啦！\n从2020年5月20日那天起，我的生命就被你点亮了。\n\n作为一个每天和逻辑、代码打交道的程序员，我可能不常说好听的甜言蜜语，但我用最严谨的心保证：对你的爱，是我心中唯一的“绝对真理”。\n\n谢谢你包容我的呆板，带给这么多温暖和快乐。未来的路还很长，我想和你继续并肩走下去，去看更多的风景。\n\n周年快乐！今天不仅要快乐，以后的每一天，我都要让你幸福。\n\n                                       —— 爱你的老公`;
+        const audio = document.getElementById('bgMusic');
+        const musicBtn = document.getElementById('musicBtn');
+        let hasStarted = false;
+
+        window.addEventListener('DOMContentLoaded', () => { renderCompactAlbum(); });
+        setTimeout(() => { if(!hasStarted) forceRemoveOverlay(); }, 3000);
+
+        function startEverything() {
+            if (hasStarted) return;
+            hasStarted = true;
+            forceRemoveOverlay();
+            setTimeout(() => { playMusic(); }, 100);
+        }
+
+        function forceRemoveOverlay() {
+            try {
+                const welcome = document.getElementById('welcomeOverlay');
+                if (welcome) {
+                    welcome.style.opacity = '0';
+                    setTimeout(() => { if (welcome && welcome.parentNode) welcome.parentNode.removeChild(welcome); }, 500);
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        function playMusic() {
+            if (!audio) return;
+            try {
+                let playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise.then(() => { if(musicBtn) musicBtn.classList.add('music-rotate'); })
+                    .catch(err => { console.log("等待交互", err); });
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        function toggleMusic(event) {
+            if (event) event.stopPropagation();
+            if (!audio) return;
+            if (audio.paused) { audio.play(); if(musicBtn) musicBtn.classList.add('music-rotate'); } 
+            else { audio.pause(); if(musicBtn) musicBtn.classList.remove('music-rotate'); }
+        }
+
+        function updateTimer() {
+            try {
+                const now = new Date();
+                const start = new Date(2020, 4, 20, 0, 0, 0); 
+                const diff = now.getTime() - start.getTime();
+                if (isNaN(diff) || diff < 0) return;
+                const days = Math.floor(diff / 86400000);
+                const hours = Math.floor((diff % 86400000) / 3600000);
+                const minutes = Math.floor((diff % 3600000) / 60000);
+                const seconds = Math.floor((diff % 60000) / 1000);
+                document.getElementById("days").innerText = days < 10 ? "0" + days : days;
+                document.getElementById("hours").innerText = hours < 10 ? "0" + hours : hours;
+                document.getElementById("minutes").innerText = minutes < 10 ? "0" + minutes : minutes;
+                document.getElementById("seconds").innerText = seconds < 10 ? "0" + seconds : seconds;
+            } catch(e) { console.log(e); }
+        }
+        setInterval(updateTimer, 1000); updateTimer();
+
+        // ======================== 大图查看联动灯箱（全面打通 60 张全域大轮播） ========================
+        let currentPhotoIndex = 0;
+        function openLightbox(index) {
+            currentPhotoIndex = index;
+            const lightbox = document.getElementById('lightbox');
+            const lightboxImg = document.getElementById('lightboxImg');
+            
+            if (lightbox && lightboxImg) {
+                // 无论是从滑块点进去还是抽屉点进去，都无缝映射全量大图链接
+                lightboxImg.src = photoList[currentPhotoIndex].url;
+                lightbox.style.display = 'flex';
+            }
+        }
+
+        function changePhoto(dir, event) {
+            if (event) event.stopPropagation();
+            currentPhotoIndex += dir;
+            if (currentPhotoIndex >= photoList.length) currentPhotoIndex = 0;
+            if (currentPhotoIndex < 0) currentPhotoIndex = photoList.length - 1;
+            
+            document.getElementById('lightboxImg').src = photoList[currentPhotoIndex].url;
+        }
+
+        function closeLightbox(event) { if (event) event.stopPropagation(); document.getElementById('lightbox').style.display = 'none'; }
+
+        // 大图左右轻扫手势监听
+        let touchStartX = 0;
+        const lightboxEl = document.getElementById('lightbox');
+        if (lightboxEl) {
+            lightboxEl.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, {passive: true});
+            lightboxEl.addEventListener('touchend', e => {
+                let touchEndX = e.changedTouches[0].screenX;
+                if (touchStartX - touchEndX > 50) changePhoto(1);
+                if (touchEndX - touchStartX > 50) changePhoto(-1);
+            }, {passive: true});
+        }
+
+        // 折叠时间线控制
+        function toggleStory(element) {
+            const items = document.querySelectorAll('.story-item');
+            items.forEach(item => { if(item !== element) item.classList.remove('active'); });
+            element.classList.toggle('active');
+        }
+
+        let typewriterTimer = null;
+        function openLetter() {
+            playMusic();
+            const overlay = document.getElementById("letterOverlay");
+            const textContainer = document.getElementById("typewriterText");
+            if(overlay && textContainer) {
+                overlay.classList.add("show"); textContainer.innerText = "";
+                let i = 0; clearInterval(typewriterTimer);
+                typewriterTimer = setInterval(() => {
+                    if (i < loveLetterContent.length) { textContainer.innerText += loveLetterContent.charAt(i++); textContainer.scrollTop = textContainer.scrollHeight; } 
+                    else { clearInterval(typewriterTimer); }
+                }, 50);
+            }
+        }
+        function closeLetter() { document.getElementById("letterOverlay").classList.remove("show"); clearInterval(typewriterTimer); }
+
+        // Canvas 浪漫粒子层
+        const canvas = document.getElementById('canvas');
+        if (canvas) {
+            const ctx = canvas.getContext('2d'); let hearts = [];
+            function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+            window.addEventListener('resize', resizeCanvas); resizeCanvas();
+            class Heart {
+                constructor() { this.reset(); this.y = Math.random() * canvas.height; }
+                reset() { this.x = Math.random() * canvas.width; this.y = canvas.height + 20; this.size = Math.random() * 8 + 5; this.speed = Math.random() * 1 + 0.5; this.opacity = Math.random() * 0.5 + 0.3; this.swing = Math.random() * 10; this.swingSpeed = Math.random() * 0.02; }
+                draw() { ctx.save(); ctx.globalAlpha = this.opacity; ctx.fillStyle = '#ff4d6d'; ctx.beginPath(); const topY = this.y - this.size; ctx.moveTo(this.x, this.y); ctx.bezierCurveTo(this.x - this.size, topY, this.x - this.size * 2, topY + this.size, this.x, this.y + this.size * 1.5); ctx.bezierCurveTo(this.x + this.size * 2, topY + this.size, this.x + this.size, topY, this.x, this.y); ctx.closePath(); ctx.fill(); ctx.restore(); }
+                update() { this.y -= this.speed; this.x += Math.sin(this.swing); this.swing += this.swingSpeed; if (this.y < -20) this.reset(); }
+            }
+            function initHearts() { for (let i = 0; i < 15; i++) hearts.push(new Heart()); }
+            function animate() { ctx.clearRect(0, 0, canvas.width, canvas.height); hearts.forEach(heart => { heart.update(); heart.draw(); }); requestAnimationFrame(animate); }
+            initHearts(); animate();
+        }
+    </script>
+</body>
+</html>
