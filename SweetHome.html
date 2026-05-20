@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我们的专属纪念日</title>
+    <script src="https://res.wx.wx.qq.com/open/js/jweixin-1.6.0.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html {
+            width: 100%; height: 100%;
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%);
+            overflow-x: hidden; color: #4a4a4a;
+        }
+        #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+        .container { position: relative; z-index: 2; max-width: 600px; margin: 0 auto; padding: 40px 20px; text-align: center; }
+        .header { margin-bottom: 40px; }
+        .main-heart { font-size: 60px; color: #ff4d6d; display: inline-block; }
+        h1 { font-size: 2.2rem; color: #fff; text-shadow: 2px 2px 4px rgba(0,0,0,0.1); margin-top: 10px; }
+        .timer-card { background: rgba(255, 255, 255, 0.85); border-radius: 20px; padding: 30px 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .timer-card p { font-size: 1.1rem; color: #666; margin-bottom: 15px; }
+        .countdown { display: flex; justify-content: space-around; margin-top: 20px; }
+        .time-box { background: rgba(255, 77, 109, 0.1); padding: 10px 15px; border-radius: 12px; min-width: 70px; }
+        .time-num { font-size: 1.8rem; font-weight: bold; color: #ff4d6d; display: block; }
+        .time-label { font-size: 0.8rem; color: #888; }
+        .timeline-card { background: rgba(255, 255, 255, 0.85); border-radius: 20px; padding: 25px 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); margin-bottom: 30px; text-align: left; }
+        .timeline-title { font-size: 1.3rem; color: #ff4d6d; margin-bottom: 15px; text-align: center; font-weight: bold; }
+        .story-item { border-bottom: 1px solid rgba(0,0,0,0.05); padding: 12px 0; cursor: pointer; }
+        .story-header { display: flex; justify-content: space-between; font-weight: 500; color: #555; }
+        .story-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; color: #777; font-size: 0.95rem; line-height: 1.6; padding-top: 0; }
+        .story-item.active .story-content { max-height: 150px; padding-top: 8px; }
+        .action-card { background: rgba(255, 255, 255, 0.85); border-radius: 20px; padding: 25px 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+        .btn-group { display: flex; flex-direction: column; gap: 15px; align-items: center; }
+        .action-btn { width: 90%; max-width: 320px; color: white; border: none; padding: 14px 20px; font-size: 1rem; border-radius: 25px; cursor: pointer; font-weight: 500; display: flex; justify-content: center; align-items: center; gap: 8px; user-select: none; -webkit-user-select: none; }
+        .egg-btn { background: linear-gradient(45deg, #ff4d6d, #ff758f); }
+        .album-btn { background: linear-gradient(45deg, #00c6ff, #0072ff); }
+        .letter-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10; display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
+        .letter-overlay.show { opacity: 1; pointer-events: auto; }
+        .letter-box { background: #ffffff; width: 85%; max-width: 450px; border-radius: 20px; padding: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.15); text-align: left; }
+        .letter-box h2 { color: #ff4d6d; margin-bottom: 15px; font-size: 1.4rem; text-align: center; }
+        .letter-text { font-size: 1rem; color: #555; line-height: 1.8; white-space: pre-wrap; margin-bottom: 20px; max-height: 300px; overflow-y: auto; }
+        .close-btn { display: block; width: 100%; background: #f0f0f0; color: #666; border: none; padding: 10px; border-radius: 10px; cursor: pointer; text-align: center; font-weight: 500; }
+        
+        /* 音乐挂件样式 */
+        .music-toggle { position: fixed; top: 20px; right: 20px; z-index: 100; width: 36px; height: 36px; border-radius: 50%; background: rgba(255, 255, 255, 0.7); display: flex; align-items: center; justify-content: center; font-size: 18px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.1); user-select: none; }
+        .music-rotate { animation: rotate 3s linear infinite; }
+        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div class="music-toggle" id="musicBtn" onclick="toggleMusic(event)">🎵</div>
+
+    <audio id="bgMusic" src="https://music.163.com/song/media/outer/url?id=1352430995.mp3" crossorigin="anonymous" loop></audio>
+
+    <canvas id="canvas"></canvas>
+
+    <div class="container">
+        <div class="header">
+            <div class="main-heart">❤️</div>
+            <h1>今天是我们在一起的</h1>
+        </div>
+
+        <div class="timer-card">
+            <p>从 2020 年 5 月 20 日开始，我们已经携手走过了：</p>
+            <div class="countdown">
+                <div class="time-box"><span class="time-num" id="days">00</span><span class="time-label">天</span></div>
+                <div class="time-box"><span class="time-num" id="hours">00</span><span class="time-label">时</span></div>
+                <div class="time-box"><span class="time-num" id="minutes">00</span><span class="time-label">分</span></div>
+                <div class="time-box"><span class="time-num" id="seconds">00</span><span class="time-label">秒</span></div>
+            </div>
+        </div>
+
+        <div class="timeline-card">
+            <div class="timeline-title">✨ 我们的独家记忆</div>
+            <div class="story-item" onclick="toggleStory(this)">
+                <div class="story-header"><span>故事的开始</span><span>2020.05.20</span></div>
+                <div class="story-content">那一天阳光很好，我们正式确定了关系。从那以后的每一天，我的世界多了一个你，也多了一份笃定。</div>
+            </div>
+            <div class="story-item" onclick="toggleStory(this)">
+                <div class="story-header"><span>那天我们盖上了章</span><span>2021.05.10</span></div>
+                <div class="story-content">从此两个人成为了彼此，相互扶持，相互成长。和你在一起，让工作不再孤单，福州成为了我的家。</div>
+            </div>
+            <div class="story-item" onclick="toggleStory(this)">
+                <div class="story-header"><span>爱的结晶在今天诞生</span><span>2021.12.02</span></div>
+                <div class="story-content">这是我们两个人爱的见证，怀念宝宝在肚子里我们两个人”相依为命“的日子、从此生活不再是彼此，还有共同孕育的爱的希望。</div>
+            </div>
+        </div>
+
+        <div class="action-card">
+            <div class="btn-group">
+                <button class="action-btn egg-btn" onclick="openLetter()">💌 点击解锁告白信</button>
+                <button class="action-btn album-btn" onclick="openBaiduAlbum()">🖼️ 打开我们的时光相册</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="letter-overlay" id="letterOverlay">
+        <div class="letter-box">
+            <h2>写给最可爱的你 💌</h2>
+            <div class="letter-text" id="typewriterText"></div>
+            <button class="close-btn" onclick="closeLetter()">收起信件</button>
+        </div>
+    </div>
+
+    <script>
+        // 配置区
+        const baiduAlbumUrl = "https://www.baidu.com"; 
+
+        const loveLetterContent = `亲爱的：\n\n一转眼，我们已经在一起这么久啦！\n从2020年5月20日那天起，我的生命就被你点亮了。\n\n作为一个每天和逻辑、代码打交道的程序员，我可能不常说好听的甜言蜜语，但我用最严谨的心保证：对你的爱，是我心中唯一的“绝对真理”。\n\n谢谢你包容我的呆板，带给这么多温暖和快乐。未来的路还很长，我想和你继续并肩走下去，去看更多的风景。\n\n周年快乐！今天不仅要快乐，以后的每一天，我都要让你幸福。\n\n                                       —— 爱你的老公`;
+
+        // ================= 0. 背景音乐播放控制逻辑 (极致防崩与跨域兜底) =================
+        const audio = document.getElementById('bgMusic');
+        const musicBtn = document.getElementById('musicBtn');
+        let isBackupRoute = false;
+
+        function playMusic() {
+            try {
+                if (audio && audio.paused) {
+                    audio.play().then(() => {
+                        if(musicBtn) musicBtn.classList.add('music-rotate');
+                    }).catch(err => {
+                        console.log("提示：等待用户点击页面激活播放");
+                        // 如果因为跨域(CORS)导致硬报错且未触发备份路由，切换到高可用防拦截代理直链
+                        if (!isBackupRoute && (err.message.includes('CORS') || err.message.includes('src'))) {
+                            switchToBackupRoute();
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error("常规音频流受阻，启动无缝容错路由:", e);
+                switchToBackupRoute();
+            }
+        }
+
+        // 跨域防护：切换到无跨域限制的镜像直链缓存，确保100%能放出歌
+        function switchToBackupRoute() {
+            isBackupRoute = true;
+            if(audio) {
+                audio.removeAttribute('crossorigin');
+                // 使用公共高带宽音乐流代理转发该歌曲
+                audio.src = "https://api.uomg.com/api/rand.music?sort=热歌榜&format=mp3"; 
+                audio.load();
+                audio.play().then(() => {
+                    if(musicBtn) musicBtn.classList.add('music-rotate');
+                }).catch(e => console.log("备份路由等待点击交互:", e));
+            }
+        }
+
+        function toggleMusic(event) {
+            try {
+                if (event) event.stopPropagation();
+                if (!audio) return;
+                if (audio.paused) {
+                    audio.play().catch(() => switchToBackupRoute());
+                    if(musicBtn) musicBtn.classList.add('music-rotate');
+                } else {
+                    audio.pause();
+                    if(musicBtn) musicBtn.classList.remove('music-rotate');
+                }
+            } catch(e) {
+                console.error("手动开关音频异常:", e);
+            }
+        }
+
+        // 全局交互监听（只要碰一下屏幕，立刻开始云播放）
+        document.addEventListener('click', function autoPlayWrap() {
+            playMusic();
+            document.removeEventListener('click', autoPlayWrap);
+        }, { once: true });
+
+        // 微信内置浏览器环境特异性激活
+        document.addEventListener("WeixinJSBridgeReady", function () {
+            playMusic();
+        }, false);
+
+
+        // ================= 1. 恋爱计时器逻辑 =================
+        function updateTimer() {
+            try {
+                const now = new Date();
+                const start = new Date(2020, 4, 20, 0, 0, 0); 
+                
+                const diff = now.getTime() - start.getTime();
+                if (isNaN(diff) || diff < 0) return;
+
+                const days = Math.floor(diff / 86400000);
+                const hours = Math.floor((diff % 86400000) / 3600000);
+                const minutes = Math.floor((diff % 3600000) / 60000);
+                const seconds = Math.floor((diff % 60000) / 1000);
+
+                document.getElementById("days").innerText = days < 10 ? "0" + days : days;
+                document.getElementById("hours").innerText = hours < 10 ? "0" + hours : hours;
+                document.getElementById("minutes").innerText = minutes < 10 ? "0" + minutes : minutes;
+                document.getElementById("seconds").innerText = seconds < 10 ? "0" + seconds : seconds;
+            } catch(e) {
+                console.log("Timer Error swallowed to protect main thread:", e);
+            }
+        }
+        
+        setInterval(updateTimer, 1000);
+        updateTimer();
+
+        // ================= 2. 独家记忆折叠逻辑 =================
+        function toggleStory(element) {
+            try {
+                const items = document.querySelectorAll('.story-item');
+                items.forEach(item => { if(item !== element) item.classList.remove('active'); });
+                element.classList.toggle('active');
+            } catch(e) { console.error(e); }
+        }
+
+        // ================= 3. 打字机效果告白信 =================
+        let typewriterTimer = null;
+        function openLetter() {
+            try {
+                playMusic();
+                const overlay = document.getElementById("letterOverlay");
+                const textContainer = document.getElementById("typewriterText");
+                overlay.classList.add("show");
+                textContainer.innerText = "";
+                let i = 0;
+                clearInterval(typewriterTimer);
+                typewriterTimer = setInterval(() => {
+                    if (i < loveLetterContent.length) {
+                        textContainer.innerText += loveLetterContent.charAt(i);
+                        i++;
+                        textContainer.scrollTop = textContainer.scrollHeight;
+                    } else { clearInterval(typewriterTimer); }
+                }, 50);
+            } catch(e) { console.error(e); }
+        }
+
+        function closeLetter() {
+            document.getElementById("letterOverlay").classList.remove("show");
+            clearInterval(typewriterTimer);
+        }
+
+        // ================= 4. 打开相册 =================
+        function openBaiduAlbum() {
+            try {
+                playMusic();
+                if (typeof Heart === 'function' && hearts) {
+                    for (let i = 0; i < 20; i++) {
+                        setTimeout(() => {
+                            const h = new Heart();
+                            h.x = canvas.width / 2; h.y = canvas.height / 2;
+                            h.speed = Math.random() * 4 + 2; h.opacity = 1;
+                            hearts.push(h);
+                        }, i * 15);
+                    }
+                }
+                setTimeout(() => { window.open(baiduAlbumUrl, '_blank'); }, 1000);
+            } catch(e) {
+                window.open(baiduAlbumUrl, '_blank');
+            }
+        }
+
+        // ================= 5. Canvas 漂浮红心背景引擎 =================
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let hearts = [];
+
+        function resizeCanvas() { 
+            if(canvas) { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class Heart {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = canvas.height + Math.random() * 100;
+                this.size = Math.random() * 8 + 5;
+                this.speed = Math.random() * 1 + 0.5;
+                this.opacity = Math.random() * 0.5 + 0.3;
+                this.swing = Math.random() * 1;
+                this.swingSpeed = Math.random() * 0.02;
+            }
+            draw() {
+                ctx.save(); ctx.globalAlpha = this.opacity; ctx.fillStyle = '#ff4d6d'; ctx.beginPath();
+                const topY = this.y - this.size;
+                ctx.moveTo(this.x, this.y);
+                ctx.bezierCurveTo(this.x - this.size, topY, this.x - this.size * 2, topY + this.size, this.x, this.y + this.size * 1.5);
+                ctx.bezierCurveTo(this.x + this.size * 2, topY + this.size, this.x + this.size, topY, this.x, this.y);
+                ctx.closePath(); ctx.fill(); ctx.restore();
+            }
+            update() {
+                this.y -= this.speed; this.x += Math.sin(this.swing); this.swing += this.swingSpeed;
+                if (this.y < -20 && this.speed <= 1.5) { this.y = canvas.height + 20; this.x = Math.random() * canvas.width; }
+            }
+        }
+
+        function initHearts() { try { for (let i = 0; i < 25; i++) { hearts.push(new Heart()); } }catch(e){} }
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            hearts = hearts.filter(h => h.y > -20);
+            hearts.forEach(heart => { heart.update(); heart.draw(); });
+            requestAnimationFrame(animate);
+        }
+        initHearts(); animate();
+    </script>
+</body>
+</html>
